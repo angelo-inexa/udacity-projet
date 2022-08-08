@@ -209,111 +209,99 @@ jobs:
           paths:
             - project/.circleci/ansible/inventory.txt
      # Here's where you will add some code to rollback on failure      
-
-#   configure-infrastructure:
-#     docker:
-#       # Docker image here that supports Ansible
-#     steps:
-#       # Checkout code from git
-#       # Add ssh keys with fingerprint
-#       # attach workspace
-#       - run:
-#           name: Install dependencies
-#           command: |
-#             # Your code here
-#             exit 1
-#       - run:
-#           name: Configure server
-#           command: |
-#             # Your code here
-#             exit 1
-#       # Here's where you will add some code to rollback on failure      
-
-#   run-migrations:
-#     docker:
-#       # Docker image here that supports NodeJS
-#     steps:
-#       # Checkout code from git
-#       - run:
-#           name: Run migrations
-#           command: |
-#             # Your code here
-#             exit 1
-#       - run:
-#           name: Send migration results to memstash
-#           command: |
-#             # Your code here
-#             exit 1
-#      # Here's where you will add some code to rollback on failure      
-
-  deploy-frontend:
+  
+  run-migrations:
     docker:
-      - image: cimg/base:stable 
+      - image: cimg/node:13.8.0
     steps:
       - checkout
       - install_awscli
-      - install_nodejs
-      - restore_cache:
-          keys: [frontend-build]
       - run:
-          name: Install dependencies
+          name: Run migrations
           command: |
-            cd frontend
+            cd backend
             npm install
+            npm audit fix --force --audit-level=critical
+            npm audit fix --force --audit-level=critical
+            npm audit --audit-level=critical
+            npm run migrations --force > migrations_dumps.txt 
+            cat migrations_dumps.txt 
       - run:
-          name: Get backend url
+          name: Send migration status to kvdb.io
           command: |
-            BACKEND_PUBLIC_IP=$(aws ec2 describe-instances \
-              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
-              --query 'Reservations[*].Instances[*].PublicIpAddress' \
-              --output text)
-            echo "API_URL=http://${BACKEND_PUBLIC_IP}:3030" >> frontend/.env
-            cat frontend/.env
-      - run:
-          name: Deploy frontend objects
-          command: |
-            cd frontend
-            npm run build
-            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive    
+            if grep -q "has been executed successfully." ~/project/backend/migrations_dumps.txt
+            then
+              curl https://kvdb.io/${KVDB_BUCKET}/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
+            fi 
+        
+  # deploy-frontend:
+  #   docker:
+  #     - image: cimg/base:stable 
+  #   steps:
+  #     - checkout
+  #     - install_awscli
+  #     - install_nodejs
+  #     - restore_cache:
+  #         keys: [frontend-build]
+  #     - run:
+  #         name: Install dependencies
+  #         command: |
+  #           cd frontend
+  #           npm install
+  #     - run:
+  #         name: Get backend url
+  #         command: |
+  #           BACKEND_PUBLIC_IP=$(aws ec2 describe-instances \
+  #             --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
+  #             --query 'Reservations[*].Instances[*].PublicIpAddress' \
+  #             --output text)
+  #           echo "API_URL=http://${BACKEND_PUBLIC_IP}:3030" >> frontend/.env
+  #           cat frontend/.env
+  #     - run:
+  #         name: Deploy frontend objects
+  #         command: |
+  #           cd frontend
+  #           npm run build
+  #           aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive    
                     
           
-  deploy-backend:
-    docker:
-      - image: cimg/base:stable 
-    steps:
-      - checkout
-      - install_awscli
-      - install_ansible 
-      - install_nodejs
-      - add_ssh_keys:
-          fingerprints: ["42:99:42:e4:09:d5:ca:91:e6:a9:78:44:34:c6:7a:13"] 
-      - attach_workspace:
-          at: ~/
-      - restore_cache:
-          keys: [backend-build] 
-      - run:
-          name: Install dependencies
-          command: |
-            cd backend
-            npm i 
-      - run:
-          name: Package Backend
-          command: |
-            cd backend
-            npm run build 
-            ls -l
-            tar -czf artifact.tar.gz dist/* package*
-            ls -l 
-            cd ..
-            cp backend/artifact.tar.gz .circleci/ansible/roles/deploy/files
-      - run:
-          name: Deploy backend
-          command: | 
-            export TYPEORM_MIGRATIONS_DIR=./migrations 
-            export TYPEORM_ENTITIES=./modules/domain/**/*.entity{.ts,.js}
-            export TYPEORM_MIGRATIONS=./migrations/*.ts
-            cd .circleci/ansible
-            ansible-playbook -i inventory.txt deploy-backend.yml 
+  # deploy-backend:
+  #   docker:
+  #     - image: cimg/base:stable 
+  #   steps:
+  #     - checkout
+  #     - install_awscli
+  #     - install_ansible 
+  #     - install_nodejs
+  #     - add_ssh_keys:
+  #         fingerprints: ["42:99:42:e4:09:d5:ca:91:e6:a9:78:44:34:c6:7a:13"] 
+  #     - attach_workspace:
+  #         at: ~/
+  #     - restore_cache:
+  #         keys: [backend-build] 
+  #     - run:
+  #         name: Install dependencies
+  #         command: |
+  #           cd backend
+  #           npm i 
+  #     - run:
+  #         name: Package Backend
+  #         command: |
+  #           cd backend
+  #           npm run build 
+  #           ls -l
+  #           tar -czf artifact.tar.gz dist/* package*
+  #           ls -l 
+  #           cd ..
+  #           cp backend/artifact.tar.gz .circleci/ansible/roles/deploy/files
+  #     - run:
+  #         name: Deploy backend
+  #         command: | 
+  #           export TYPEORM_MIGRATIONS_DIR=./migrations 
+  #           export TYPEORM_ENTITIES=./modules/domain/**/*.entity{.ts,.js}
+  #           export TYPEORM_MIGRATIONS=./migrations/*.ts
+  #           cd .circleci/ansible
+  #           ansible-playbook -i inventory.txt deploy-backend.yml 
         
   # smoke-test:
   #   docker:
@@ -380,7 +368,25 @@ jobs:
 #             then
 #               # your code here
 #             fi
-            
+          
+
+  configure-infrastructure:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - install_awscli
+      - install_ansible
+      - add_ssh_keys:
+          fingerprints: ["42:99:42:e4:09:d5:ca:91:e6:a9:78:44:34:c6:7a:13"]
+      - attach_workspace:
+          at: ~/
+      - run:
+          name: Configure server
+          command: |
+            cd .circleci/ansible 
+            ansible-playbook -i inventory.txt configure-server.yml
+      
 
 workflows:
   default:
@@ -400,16 +406,17 @@ workflows:
           filters:
             branches:
               only: [master]
-      - smoke-test:
-          requires: [deploy-backend, deploy-frontend]
-      # - configure-infrastructure:
-      #     requires: [deploy-infrastructure]
-      # - run-migrations:
-      #     requires: [configure-infrastructure]
+      - run-migrations:
+          requires: [configure-infrastructure]
+      - configure-infrastructure:
+          requires: [deploy-infrastructure]
+     
       # - deploy-frontend:
       #     requires: [run-migrations]
       # - deploy-backend:
       #     requires: [run-migrations]
+      # - smoke-test:
+      #     requires: [deploy-backend, deploy-frontend]
       
       # - cloudfront-update:
       #     requires: [smoke-test]

@@ -8,4 +8,12 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=glee
     ports:
-      - "5532:5432"
+      - "5533:5432"
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: always
+    ports:
+      - 8084:8080
+    
