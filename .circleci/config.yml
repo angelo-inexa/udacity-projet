@@ -350,7 +350,7 @@ jobs:
     
       - destroy-environment 
       - revert-migrations
-      - cleanup  
+     
 
   cloudfront-update:
     docker:
