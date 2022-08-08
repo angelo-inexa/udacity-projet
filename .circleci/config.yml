@@ -326,6 +326,7 @@ jobs:
             echo "IP ---> ${BACKEND_PUBLIC_IP}"
             echo "API_URL ---> http://${BACKEND_PUBLIC_IP}:3030"
             export API_URL=http://${BACKEND_PUBLIC_IP}:3030
+            sleep 120
             if curl -s $API_URL/api/status | grep "ok"
             then
               echo "Backend smoke test successful"
